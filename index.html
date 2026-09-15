@@ -12,9 +12,19 @@
 <body>
     <header>
         <h1>Eternal Timer</h1>
+        <div class="header-actions">
+            <button id="export-btn" class="icon-btn" type="button" aria-label="Export timers">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 7l5-4 5 4"/><path d="M5 11v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></svg>
+            </button>
+            <button id="import-btn" class="icon-btn" type="button" aria-label="Import timers">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 4 5-4"/><path d="M5 19h14"/></svg>
+            </button>
+            <input type="file" id="import-file" accept=".csv,text/csv" hidden>
+        </div>
     </header>
 
     <main>
+        <p id="status-message" class="status"></p>
         <section id="stopwatches-panel" class="tab-panel active">
             <div class="section-header">
                 <h2>Stopwatches (<span id="stopwatches-count">0</span>/50)</h2>

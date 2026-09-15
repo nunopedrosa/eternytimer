@@ -81,6 +81,16 @@ function makeId() {
     return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function normalizeTimer(raw) {
+    return {
+        id: (typeof raw.id === 'string' && raw.id !== '') ? raw.id : makeId(),
+        name: sanitizeName(raw.name) ?? 'Timer',
+        type: normalizeType(raw.type),
+        initial_value: Math.min(MAX_INITIAL_VALUE_SECONDS, Math.max(0, Math.floor(Number(raw.initial_value) || 0))),
+        created_at: Number.isNaN(Date.parse(raw.created_at)) ? new Date().toISOString() : raw.created_at
+    };
+}
+
 function loadTimers() {
     let parsed;
     try {
@@ -91,13 +101,7 @@ function loadTimers() {
     if (!Array.isArray(parsed)) {
         return [];
     }
-    return parsed.map(timer => ({
-        id: typeof timer.id === 'string' ? timer.id : makeId(),
-        name: sanitizeName(timer.name) ?? 'Timer',
-        type: normalizeType(timer.type),
-        initial_value: Math.max(0, Math.floor(Number(timer.initial_value) || 0)),
-        created_at: Number.isNaN(Date.parse(timer.created_at)) ? new Date().toISOString() : timer.created_at
-    }));
+    return parsed.map(normalizeTimer);
 }
 
 function saveTimers() {
@@ -158,6 +162,190 @@ function deleteTimer(id) {
     saveTimers();
     renderTimers();
 }
+
+// CSV export/import (backup)
+
+const statusMsg = document.getElementById('status-message');
+const exportBtn = document.getElementById('export-btn');
+const importBtn = document.getElementById('import-btn');
+const importFileInput = document.getElementById('import-file');
+
+const CSV_HEADERS = ['id', 'name', 'type', 'initial_value', 'created_at'];
+
+function setStatus(text, isError) {
+    statusMsg.textContent = text;
+    statusMsg.classList.toggle('error', !!isError);
+}
+
+function csvEscape(value) {
+    value = String(value);
+    if (/[",\r\n]/.test(value)) {
+        return '"' + value.replace(/"/g, '""') + '"';
+    }
+    return value;
+}
+
+function exportTimers() {
+    if (timers.length === 0) {
+        setStatus('No timers to export');
+        return;
+    }
+    const rows = [CSV_HEADERS.join(',')];
+    timers.forEach(timer => {
+        let name = timer.name;
+        if (/^[=+\-@]/.test(name)) {
+            name = "'" + name;
+        }
+        rows.push([timer.id, name, timerType(timer), timer.initial_value, timer.created_at]
+            .map(csvEscape).join(','));
+    });
+    const blob = new Blob([rows.join('\r\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const now = new Date();
+    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    a.href = url;
+    a.download = `eternal-timer-backup-${date}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setStatus(`Exported ${timers.length} timers.`);
+}
+
+// Minimal RFC 4180 parser: quoted fields, doubled quotes, embedded
+// newlines, CRLF/LF, trailing newline, BOM.
+function parseCSV(text) {
+    if (text.charCodeAt(0) === 0xFEFF) {
+        text = text.slice(1);
+    }
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (inQuotes) {
+            if (c === '"') {
+                if (text[i + 1] === '"') {
+                    field += '"';
+                    i++;
+                } else {
+                    inQuotes = false;
+                }
+            } else {
+                field += c;
+            }
+        } else if (c === '"') {
+            inQuotes = true;
+        } else if (c === ',') {
+            row.push(field);
+            field = '';
+        } else if (c === '\n' || c === '\r') {
+            if (c === '\r' && text[i + 1] === '\n') {
+                i++;
+            }
+            row.push(field);
+            field = '';
+            rows.push(row);
+            row = [];
+        } else {
+            field += c;
+        }
+    }
+    if (field !== '' || row.length > 0) {
+        row.push(field);
+        rows.push(row);
+    }
+    return rows;
+}
+
+function importTimers(text) {
+    const rows = parseCSV(text);
+    if (rows.length === 0) {
+        setStatus('Invalid CSV: missing required columns', true);
+        return;
+    }
+    const header = rows[0].map(h => h.trim().toLowerCase());
+    const colIndex = {};
+    let missing = false;
+    ['name', 'type', 'initial_value', 'created_at'].forEach(name => {
+        const idx = header.indexOf(name);
+        if (idx === -1) {
+            missing = true;
+        } else {
+            colIndex[name] = idx;
+        }
+    });
+    colIndex.id = header.indexOf('id');
+    if (missing) {
+        setStatus('Invalid CSV: missing required columns', true);
+        return;
+    }
+
+    const dataRows = rows.slice(1).filter(r => r.length > 1 || r[0] !== '');
+    if (dataRows.length === 0) {
+        setStatus('No timers found in file');
+        return;
+    }
+
+    let added = 0;
+    let updated = 0;
+    let skipped = 0;
+    dataRows.forEach(r => {
+        const raw = {
+            id: colIndex.id === -1 ? '' : r[colIndex.id],
+            name: r[colIndex.name],
+            type: r[colIndex.type],
+            initial_value: r[colIndex.initial_value],
+            created_at: r[colIndex.created_at]
+        };
+        if (Number.isNaN(Date.parse(raw.created_at))) {
+            skipped++;
+            return;
+        }
+        // Strip the formula-injection guard prefix added on export.
+        if (typeof raw.name === 'string' && /^'[=+\-@]/.test(raw.name)) {
+            raw.name = raw.name.slice(1);
+        }
+        const record = normalizeTimer(raw);
+        const existingIndex = timers.findIndex(t => t.id === record.id);
+        if (existingIndex !== -1) {
+            timers[existingIndex] = record;
+            updated++;
+            return;
+        }
+        const typeCount = timers.filter(t => timerType(t) === record.type).length;
+        if (typeCount >= MAX_TIMERS_PER_TYPE) {
+            skipped++;
+            return;
+        }
+        timers.push(record);
+        added++;
+    });
+
+    saveTimers();
+    renderTimers();
+    let msg = `Imported ${added + updated} timers (${updated} updated, ${added} added).`;
+    if (skipped > 0) {
+        msg += ` Skipped ${skipped}.`;
+    }
+    setStatus(msg);
+}
+
+exportBtn.addEventListener('click', exportTimers);
+importBtn.addEventListener('click', () => importFileInput.click());
+importFileInput.addEventListener('change', async () => {
+    const file = importFileInput.files[0];
+    importFileInput.value = '';
+    if (!file) return;
+    try {
+        importTimers(await file.text());
+    } catch (err) {
+        console.error(err);
+        setStatus('Failed to read file', true);
+    }
+});
 
 // Returns the duration split into a "days" part and a "hh:mm:ss" part, so the
 // caller can render them in separately-sized columns. This keeps the

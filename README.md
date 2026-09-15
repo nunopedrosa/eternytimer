@@ -39,6 +39,9 @@ The site is fully static — no PHP or server-side storage needed.
    cd ~/timers.trekm.com && git pull
    ```
 
+## Backup (export/import)
+Use the icon buttons in the header to export/import all timers as CSV (`eternal-timer-backup-YYYY-MM-DD.csv`). Columns: `id,name,type,initial_value,created_at`. Import merges by `id`: an existing timer with the same id is replaced, otherwise the row is added; rows with an unparseable `created_at` (or that would exceed the 50-per-type limit) are skipped. Names starting with `=`, `+`, `-` or `@` are `'`-prefixed on export and un-prefixed on import (spreadsheet formula-injection guard).
+
 ## Implementation Details
 - Timers are stored in `localStorage` under the key `eternal-timer.timers`, each with a `type` of `stopwatch` or `countdown` (records created before countdowns existed are treated as `stopwatch`).
 - Time is handled using UTC to ensure consistency across timezones.
