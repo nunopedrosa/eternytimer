@@ -1,11 +1,15 @@
-const CACHE_NAME = 'eternal-timer-v5';
+const CACHE_NAME = 'eternal-timer-v6';
 const ASSETS = [
   '/',
   '/index.html',
   '/css/style.css',
   '/js/app.js',
   '/manifest.json',
-  '/icons/icon.svg'
+  '/icons/icon.svg',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/apple-touch-icon.png',
+  '/favicon.ico'
 ];
 
 self.addEventListener('install', (event) => {

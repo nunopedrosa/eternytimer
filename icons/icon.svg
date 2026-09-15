@@ -1,10 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" fill="#000000"/>
-  <circle cx="256" cy="276" r="180" fill="none" stroke="#ffffff" stroke-width="16"/>
-  <rect x="226" y="40" width="60" height="36" rx="10" fill="#ffffff"/>
-  <rect x="240" y="8" width="32" height="28" rx="8" fill="#ffffff"/>
-  <rect x="392" y="96" width="40" height="16" rx="8" fill="#ffffff" transform="rotate(45 412 104)"/>
-  <line x1="256" y1="276" x2="256" y2="150" stroke="#ffffff" stroke-width="14" stroke-linecap="round"/>
-  <line x1="256" y1="276" x2="340" y2="300" stroke="#ffffff" stroke-width="14" stroke-linecap="round"/>
-  <circle cx="256" cy="276" r="12" fill="#ffffff"/>
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <!-- open ring: runs clockwise from the crown and stops at 315 degrees -->
+    <path d="M298.6 117.2 A176 176 0 1 1 131.5 163.5" stroke-width="22"/>
+    <!-- sub-dial at 135 degrees -->
+    <circle cx="316" cy="348" r="40" stroke-width="12"/>
+    <path d="M316 348 V326" stroke-width="10"/>
+    <!-- infinity "hand" pointing at 315 degrees -->
+    <path transform="translate(256 288) rotate(-135)" d="M14 0 C14 -42 52 -42 86 0 C120 42 158 42 158 0 C158 -42 120 -42 86 0 C52 42 14 42 14 0 Z" stroke-width="16"/>
+  </g>
+  <!-- crown -->
+  <rect x="236" y="66" width="40" height="48" rx="8" fill="#ffffff"/>
+  <rect x="220" y="34" width="72" height="38" rx="12" fill="#ffffff"/>
+  <!-- side pusher at 45 degrees -->
+  <rect x="369.9" y="139.1" width="48" height="22" rx="11" fill="#ffffff" transform="rotate(45 393.9 150.1)"/>
+  <!-- centre pivot -->
+  <circle cx="256" cy="288" r="16" fill="#ffffff"/>
 </svg>
