@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eternal Timer</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+    <meta name="theme-color" content="#000000">
+</head>
+<body>
+    <header>
+        <h1>Eternal Timer</h1>
+    </header>
+
+    <main>
+        <section id="stopwatches-panel" class="tab-panel active">
+            <div class="section-header">
+                <h2>Stopwatches (<span id="stopwatches-count">0</span>/50)</h2>
+            </div>
+            <div id="stopwatches-list" class="timers-list">
+                <!-- Stopwatches will be injected here -->
+            </div>
+        </section>
+
+        <section id="countdowns-panel" class="tab-panel">
+            <div class="section-header">
+                <h2>Countdowns (<span id="countdowns-count">0</span>/50)</h2>
+            </div>
+            <div id="countdowns-list" class="timers-list">
+                <!-- Countdowns will be injected here -->
+            </div>
+        </section>
+    </main>
+
+    <button id="open-modal-btn" class="fab">+</button>
+
+    <nav class="tab-bar">
+        <button class="tab-btn active" data-tab="stopwatches">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 13V9"/><path d="M9 2h6"/><path d="M12 2v2"/><path d="M18.5 6.5l1.2-1.2"/></svg>
+            <span>Stopwatches</span>
+        </button>
+        <button class="tab-btn" data-tab="countdowns">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v5l3 2"/><circle cx="12" cy="13" r="8"/><path d="M9 2h6"/></svg>
+            <span>Countdowns</span>
+        </button>
+    </nav>
+
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2 id="modal-title">New Stopwatch</h2>
+            <input type="text" id="timer-name-field" class="timer-name-field" placeholder="Timer name" maxlength="100" value="New Timer">
+            <div class="picker-wheel" id="picker-wheel">
+                <div class="wheel-highlight"></div>
+                <div class="wheel-col" data-unit="days"><div class="wheel-list"></div></div>
+                <div class="wheel-unit">d</div>
+                <div class="wheel-col" data-unit="hours"><div class="wheel-list"></div></div>
+                <div class="wheel-unit">h</div>
+                <div class="wheel-col" data-unit="minutes"><div class="wheel-list"></div></div>
+                <div class="wheel-unit">m</div>
+                <div class="wheel-col" data-unit="seconds"><div class="wheel-list"></div></div>
+                <div class="wheel-unit">s</div>
+            </div>
+            <div id="selected-value-display">00:00:00</div>
+            <button id="add-timer-btn">Add Timer</button>
+            <p id="error-message" class="error"></p>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('ServiceWorker registration failed: ', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
