@@ -491,6 +491,7 @@ function setDays(daysEl, days) {
     }
     daysEl.firstChild.textContent = days;
     unitEl.hidden = days === '';
+    daysEl.classList.toggle('has-days', days !== '');
 }
 
 function buildTimerCard(timer) {
@@ -557,11 +558,22 @@ function buildTimerCard(timer) {
     content.appendChild(row);
 
     if (isStopwatch && timer.laps.length > 0) {
+        const splits = timer.laps.map((lap, i) => lap - (i > 0 ? timer.laps[i - 1] : 0));
+        let fastestIdx = -1, slowestIdx = -1;
+        if (splits.length >= 2) {
+            fastestIdx = splits.indexOf(Math.min(...splits));
+            slowestIdx = splits.indexOf(Math.max(...splits));
+            if (fastestIdx === slowestIdx) {
+                fastestIdx = slowestIdx = -1; // all equal: nothing to colour
+            }
+        }
         const lapList = document.createElement('ol');
         lapList.className = 'lap-list';
         for (let i = timer.laps.length - 1; i >= 0; i--) {
             const row = document.createElement('li');
             row.className = 'lap-row';
+            if (i === fastestIdx) row.classList.add('lap-fastest');
+            if (i === slowestIdx) row.classList.add('lap-slowest');
 
             const indexEl = document.createElement('span');
             indexEl.className = 'lap-index';
@@ -626,7 +638,46 @@ function renderTimers() {
 
     openCard = null; // cards were rebuilt; any open reference is stale
     updateDisplays();
+    fitDisplays();
 }
+
+// Auto-fit: shrink all displays in each visible list to the largest size that
+// lets the widest one fit its flex slot (capped at --display-max).
+function fitDisplays() {
+    const rootStyle = getComputedStyle(document.documentElement);
+    const maxPx = parseFloat(rootStyle.getPropertyValue('--display-max')) * parseFloat(rootStyle.fontSize);
+    Object.values(TABS).forEach(tab => {
+        if (!tab.panel.classList.contains('active')) return; // hidden panels measure 0
+        const displays = Array.from(tab.list.querySelectorAll('.timer-display'));
+        if (displays.length === 0) return;
+        let size = maxPx;
+        displays.forEach(el => {
+            el.style.fontSize = maxPx + 'px';
+            const available = el.clientWidth; // flex:1 slot width, unaffected by content
+            const needed = el.scrollWidth;
+            if (needed > available && needed > 0) size = Math.min(size, Math.floor(maxPx * available / needed));
+        });
+        size = Math.max(size, 20);
+        // Glyph advance rounding makes the scaled estimate land a few px wide;
+        // step down until the widest display actually fits.
+        for (let guard = 0; guard < 10 && size > 20; guard++) {
+            let over = 0;
+            displays.forEach(el => {
+                el.style.fontSize = size + 'px';
+                over = Math.max(over, el.scrollWidth - el.clientWidth);
+            });
+            if (over <= 0) break;
+            size--;
+        }
+        displays.forEach(el => { el.style.fontSize = size + 'px'; });
+    });
+}
+
+let fitResizeTimer = null;
+window.addEventListener('resize', () => {
+    clearTimeout(fitResizeTimer);
+    fitResizeTimer = setTimeout(fitDisplays, 100);
+});
 
 // Delegation for name updates (blur doesn't bubble, so this needs capture)
 mainEl.addEventListener('blur', (e) => {
@@ -784,6 +835,7 @@ mainEl.addEventListener('click', (e) => {
 
 function updateDisplays() {
     const now = Date.now();
+    let daysChanged = false;
     timers.forEach(timer => {
         const isCountdown = timerType(timer) === 'countdown';
         const total = totalMs(timer, now);
@@ -797,6 +849,7 @@ function updateDisplays() {
             if (daysEl.dataset.days !== days) {
                 daysEl.dataset.days = days;
                 setDays(daysEl, days);
+                daysChanged = true;
             }
             const timeEl = displayEl.querySelector('.timer-time');
             if (timeEl.textContent !== time) {
@@ -821,6 +874,9 @@ function updateDisplays() {
             }
         }
     });
+    if (daysChanged) {
+        fitDisplays();
+    }
 }
 
 // Tab switching
@@ -837,6 +893,7 @@ function switchTab(tabName) {
     tabButtons.forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === tabName);
     });
+    fitDisplays();
 }
 
 tabButtons.forEach(btn => {

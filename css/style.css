@@ -1,4 +1,5 @@
 :root {
+    --display-max: 5.32rem;
     --bg: #000000;
     --surface: #1c1c1e;
     --surface-alt: #2c2c2e;
@@ -251,7 +252,7 @@ h2 {
     flex: 1;
     min-width: 0;
     white-space: nowrap;
-    font-size: clamp(1.4rem, 8vw, 2.66rem);
+    font-size: var(--display-size, 5.32rem);
     font-weight: 200;
     font-family: inherit;
     font-stretch: extra-condensed; /* SF Pro Compressed on Apple platforms */
@@ -267,9 +268,14 @@ h2 {
 
 .timer-days {
     display: inline-block;
+    min-width: 0;
+    margin-right: 0;
+    text-align: right;
+}
+
+.timer-days.has-days {
     min-width: 2ch;
     margin-right: 0.4ch;
-    text-align: right;
 }
 
 .timer-days-unit {
@@ -341,6 +347,16 @@ h2 {
 
 .lap-total {
     color: var(--text);
+}
+
+.lap-row.lap-fastest .lap-split,
+.lap-row.lap-fastest .lap-index {
+    color: var(--green);
+}
+
+.lap-row.lap-slowest .lap-split,
+.lap-row.lap-slowest .lap-index {
+    color: var(--red);
 }
 
 /* Modal Styles */
