@@ -54,6 +54,7 @@ function timerType(timer) {
 
 const STORAGE_KEY = 'eternal-timer.timers';
 const MAX_TIMERS_PER_TYPE = 50;
+const MAX_LAPS = 100;
 const MAX_NAME_LENGTH = 100;
 const MAX_INITIAL_VALUE_SECONDS = 100 * 365 * 24 * 3600; // 100 years
 
@@ -82,12 +83,40 @@ function makeId() {
 }
 
 function normalizeTimer(raw) {
+    const type = normalizeType(raw.type);
+    const created_at = Number.isNaN(Date.parse(raw.created_at)) ? new Date().toISOString() : raw.created_at;
+
+    let started_at;
+    let elapsed_ms;
+    if (raw.started_at === undefined && raw.elapsed_ms === undefined) {
+        // Legacy record (pre pause/resume): behaves as running since creation.
+        started_at = created_at;
+        elapsed_ms = 0;
+    } else {
+        started_at = (raw.started_at === null || raw.started_at === '' || Number.isNaN(Date.parse(raw.started_at)))
+            ? null
+            : raw.started_at;
+        elapsed_ms = Math.max(0, Math.floor(Number(raw.elapsed_ms) || 0));
+    }
+
+    let laps = [];
+    if (type === 'stopwatch' && Array.isArray(raw.laps)) {
+        laps = raw.laps
+            .map(Number)
+            .filter(n => Number.isFinite(n) && n >= 0)
+            .map(Math.floor)
+            .slice(0, MAX_LAPS);
+    }
+
     return {
         id: (typeof raw.id === 'string' && raw.id !== '') ? raw.id : makeId(),
         name: sanitizeName(raw.name) ?? 'Timer',
-        type: normalizeType(raw.type),
+        type: type,
         initial_value: Math.min(MAX_INITIAL_VALUE_SECONDS, Math.max(0, Math.floor(Number(raw.initial_value) || 0))),
-        created_at: Number.isNaN(Date.parse(raw.created_at)) ? new Date().toISOString() : raw.created_at
+        created_at: created_at,
+        started_at: started_at,
+        elapsed_ms: elapsed_ms,
+        laps: laps
     };
 }
 
@@ -139,7 +168,10 @@ function addTimer(initialValue, name, type) {
         name: name,
         type: type,
         initial_value: initialValue,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        started_at: new Date().toISOString(),
+        elapsed_ms: 0,
+        laps: []
     });
 
     saveTimers();
@@ -163,6 +195,47 @@ function deleteTimer(id) {
     renderTimers();
 }
 
+// Elapsed time is split into a persisted accumulated part (elapsed_ms, from
+// previous run segments) plus the current running segment (now - started_at).
+function elapsedMs(timer, nowMs) {
+    return timer.elapsed_ms + (timer.started_at ? Math.max(0, nowMs - Date.parse(timer.started_at)) : 0);
+}
+
+// Total shown on the card: count-up for stopwatches, remaining for countdowns
+// (may go negative; display clamps to 0).
+function totalMs(timer, nowMs) {
+    const elapsed = elapsedMs(timer, nowMs);
+    return timerType(timer) === 'countdown'
+        ? timer.initial_value * 1000 - elapsed
+        : timer.initial_value * 1000 + elapsed;
+}
+
+function toggleTimer(id) {
+    const timer = timers.find(t => t.id === id);
+    if (!timer) return;
+    const now = Date.now();
+    if (timerType(timer) === 'countdown' && totalMs(timer, now) <= 0) {
+        return;
+    }
+    if (timer.started_at) {
+        timer.elapsed_ms += Math.max(0, now - Date.parse(timer.started_at));
+        timer.started_at = null;
+    } else {
+        timer.started_at = new Date().toISOString();
+    }
+    saveTimers();
+    renderTimers();
+}
+
+function addLap(id) {
+    const timer = timers.find(t => t.id === id);
+    if (!timer || timerType(timer) !== 'stopwatch') return;
+    if (!timer.started_at || timer.laps.length >= MAX_LAPS) return;
+    timer.laps.push(totalMs(timer, Date.now()));
+    saveTimers();
+    renderTimers();
+}
+
 // CSV export/import (backup)
 
 const statusMsg = document.getElementById('status-message');
@@ -170,7 +243,7 @@ const exportBtn = document.getElementById('export-btn');
 const importBtn = document.getElementById('import-btn');
 const importFileInput = document.getElementById('import-file');
 
-const CSV_HEADERS = ['id', 'name', 'type', 'initial_value', 'created_at'];
+const CSV_HEADERS = ['id', 'name', 'type', 'initial_value', 'created_at', 'started_at', 'elapsed_ms', 'laps'];
 
 function setStatus(text, isError) {
     statusMsg.textContent = text;
@@ -196,7 +269,8 @@ function exportTimers() {
         if (/^[=+\-@]/.test(name)) {
             name = "'" + name;
         }
-        rows.push([timer.id, name, timerType(timer), timer.initial_value, timer.created_at]
+        rows.push([timer.id, name, timerType(timer), timer.initial_value, timer.created_at,
+            timer.started_at ?? '', timer.elapsed_ms, timer.laps.join(';')]
             .map(csvEscape).join(','));
     });
     const blob = new Blob([rows.join('\r\n')], { type: 'text/csv' });
@@ -278,6 +352,10 @@ function importTimers(text) {
         }
     });
     colIndex.id = header.indexOf('id');
+    // Pause/lap columns are optional: legacy 5-column files must still import.
+    ['started_at', 'elapsed_ms', 'laps'].forEach(name => {
+        colIndex[name] = header.indexOf(name);
+    });
     if (missing) {
         setStatus('Invalid CSV: missing required columns', true);
         return;
@@ -300,6 +378,15 @@ function importTimers(text) {
             initial_value: r[colIndex.initial_value],
             created_at: r[colIndex.created_at]
         };
+        if (colIndex.started_at !== -1) {
+            raw.started_at = r[colIndex.started_at] === '' ? null : r[colIndex.started_at];
+        }
+        if (colIndex.elapsed_ms !== -1) {
+            raw.elapsed_ms = r[colIndex.elapsed_ms];
+        }
+        if (colIndex.laps !== -1) {
+            raw.laps = r[colIndex.laps].split(';').filter(s => s !== '');
+        }
         if (Number.isNaN(Date.parse(raw.created_at))) {
             skipped++;
             return;
@@ -351,12 +438,14 @@ importFileInput.addEventListener('change', async () => {
 // caller can render them in separately-sized columns. This keeps the
 // hh:mm:ss digits from shifting horizontally once a timer crosses the
 // 1-day mark (or gains an extra day digit).
-function formatDuration(totalSeconds) {
-    totalSeconds = Math.max(0, Math.floor(totalSeconds));
+function formatDuration(ms, showFraction) {
+    ms = Math.max(0, Math.floor(ms));
+    const totalSeconds = Math.floor(ms / 1000);
     const d = Math.floor(totalSeconds / (3600 * 24));
     const h = Math.floor((totalSeconds % (3600 * 24)) / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);
     const s = Math.floor(totalSeconds % 60);
+    const cc = String(Math.floor((ms % 1000) / 10)).padStart(2, '0');
 
     const hh = String(h).padStart(2, '0');
     const mm = String(m).padStart(2, '0');
@@ -364,11 +453,26 @@ function formatDuration(totalSeconds) {
 
     return {
         days: d > 0 ? String(d) : '',
-        time: `${hh}:${mm}:${ss}`
+        time: showFraction ? `${hh}:${mm}:${ss}.${cc}` : `${hh}:${mm}:${ss}`
     };
 }
 
+// The days span keeps a permanent child unit span ("d") so toggling between
+// "has days" and "no days" only flips text/visibility, not structure.
+function setDays(daysEl, days) {
+    let unitEl = daysEl.querySelector('.timer-days-unit');
+    if (!unitEl) {
+        unitEl = document.createElement('span');
+        unitEl.className = 'timer-days-unit';
+        unitEl.textContent = 'd';
+        daysEl.appendChild(unitEl);
+    }
+    daysEl.firstChild.textContent = days;
+    unitEl.hidden = days === '';
+}
+
 function buildTimerCard(timer) {
+    const isStopwatch = timerType(timer) === 'stopwatch';
     const card = document.createElement('div');
     card.className = 'timer-card';
 
@@ -388,6 +492,8 @@ function buildTimerCard(timer) {
 
     const daysEl = document.createElement('span');
     daysEl.className = 'timer-days';
+    daysEl.appendChild(document.createTextNode(''));
+    setDays(daysEl, '');
 
     const timeEl = document.createElement('span');
     timeEl.className = 'timer-time';
@@ -398,6 +504,59 @@ function buildTimerCard(timer) {
 
     info.appendChild(nameInput);
     info.appendChild(display);
+
+    const controls = document.createElement('div');
+    controls.className = 'timer-controls';
+
+    if (isStopwatch) {
+        const lapBtn = document.createElement('button');
+        lapBtn.type = 'button';
+        lapBtn.className = 'ctrl-btn lap-btn';
+        lapBtn.dataset.id = timer.id;
+        lapBtn.textContent = 'Lap';
+        lapBtn.disabled = !timer.started_at || timer.laps.length >= MAX_LAPS;
+        controls.appendChild(lapBtn);
+    }
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'ctrl-btn toggle-btn';
+    toggleBtn.dataset.id = timer.id;
+    toggleBtn.textContent = timer.started_at ? 'Stop' : 'Start';
+    toggleBtn.classList.toggle('running', !!timer.started_at);
+    controls.appendChild(toggleBtn);
+
+    info.appendChild(controls);
+
+    if (isStopwatch && timer.laps.length > 0) {
+        const lapList = document.createElement('ol');
+        lapList.className = 'lap-list';
+        for (let i = timer.laps.length - 1; i >= 0; i--) {
+            const row = document.createElement('li');
+            row.className = 'lap-row';
+
+            const indexEl = document.createElement('span');
+            indexEl.className = 'lap-index';
+            indexEl.textContent = `Lap ${i + 1}`;
+
+            const prev = i > 0 ? timer.laps[i - 1] : 0;
+            const split = formatDuration(timer.laps[i] - prev, true);
+            const splitEl = document.createElement('span');
+            splitEl.className = 'lap-split';
+            splitEl.textContent = `${split.days ? split.days + 'd ' : ''}${split.time}`;
+
+            const total = formatDuration(timer.laps[i], true);
+            const totalEl = document.createElement('span');
+            totalEl.className = 'lap-total';
+            totalEl.textContent = `${total.days ? total.days + 'd ' : ''}${total.time}`;
+
+            row.appendChild(indexEl);
+            row.appendChild(splitEl);
+            row.appendChild(totalEl);
+            lapList.appendChild(row);
+        }
+        info.appendChild(lapList);
+    }
 
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
@@ -441,8 +600,18 @@ mainEl.addEventListener('blur', (e) => {
     }
 }, true);
 
-// Delegation for delete buttons
+// Delegation for card buttons (delete / start-stop / lap)
 mainEl.addEventListener('click', (e) => {
+    const toggleBtn = e.target.closest('.toggle-btn');
+    if (toggleBtn) {
+        toggleTimer(toggleBtn.dataset.id);
+        return;
+    }
+    const lapBtn = e.target.closest('.lap-btn');
+    if (lapBtn) {
+        addLap(lapBtn.dataset.id);
+        return;
+    }
     const btn = e.target.closest('.delete-btn');
     if (!btn) return;
 
@@ -455,21 +624,42 @@ mainEl.addEventListener('click', (e) => {
 });
 
 function updateDisplays() {
-    const now = new Date();
+    const now = Date.now();
     timers.forEach(timer => {
-        const createdDate = new Date(timer.created_at);
-        const elapsedSeconds = Math.floor((now - createdDate) / 1000);
-
         const isCountdown = timerType(timer) === 'countdown';
-        const remaining = timer.initial_value - elapsedSeconds;
-        const totalSeconds = isCountdown ? remaining : timer.initial_value + elapsedSeconds;
+        const total = totalMs(timer, now);
+        const finished = isCountdown && total <= 0;
 
+        const card = document.getElementById(`display-${timer.id}`)?.closest('.timer-card');
         const displayEl = document.getElementById(`display-${timer.id}`);
         if (displayEl) {
-            const { days, time } = formatDuration(totalSeconds);
-            displayEl.querySelector('.timer-days').textContent = days;
-            displayEl.querySelector('.timer-time').textContent = time;
-            displayEl.classList.toggle('finished', isCountdown && remaining <= 0);
+            const { days, time } = formatDuration(total, !isCountdown);
+            const daysEl = displayEl.querySelector('.timer-days');
+            if (daysEl.dataset.days !== days) {
+                daysEl.dataset.days = days;
+                setDays(daysEl, days);
+            }
+            const timeEl = displayEl.querySelector('.timer-time');
+            if (timeEl.textContent !== time) {
+                timeEl.textContent = time;
+            }
+            displayEl.classList.toggle('finished', finished);
+        }
+        if (card) {
+            const toggleBtn = card.querySelector('.toggle-btn');
+            if (toggleBtn) {
+                const running = !!timer.started_at && !finished;
+                const label = timer.started_at ? 'Stop' : 'Start';
+                if (toggleBtn.textContent !== label) {
+                    toggleBtn.textContent = label;
+                }
+                toggleBtn.classList.toggle('running', running);
+                toggleBtn.disabled = finished;
+            }
+            const lapBtn = card.querySelector('.lap-btn');
+            if (lapBtn) {
+                lapBtn.disabled = !timer.started_at || timer.laps.length >= MAX_LAPS;
+            }
         }
     });
 }
@@ -521,7 +711,7 @@ function updateSelectedDisplay() {
     const s = String(pickerValues.seconds).padStart(2, '0');
 
     if (d > 0) {
-        selectedValueDisplay.textContent = `${d} ${h}:${m}:${s}`;
+        selectedValueDisplay.textContent = `${d}d ${h}:${m}:${s}`;
     } else {
         selectedValueDisplay.textContent = `${h}:${m}:${s}`;
     }
@@ -607,5 +797,9 @@ buildWheels();
 // Initial load
 loadAndRender();
 
-// Update every second
-setInterval(updateDisplays, 1000);
+// Update every frame (hundredths display needs more than 1 Hz)
+function tick() {
+    updateDisplays();
+    requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
