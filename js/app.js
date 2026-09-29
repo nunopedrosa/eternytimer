@@ -8,6 +8,7 @@ const addTimerBtn = document.getElementById('add-timer-btn');
 const selectedValueDisplay = document.getElementById('selected-value-display');
 const timerNameField = document.getElementById('timer-name-field');
 const tabButtons = document.querySelectorAll('.tab-btn');
+const toggleAllBtn = document.getElementById('toggle-all-btn');
 
 // Maps the active UI tab to the timer "type" persisted in localStorage,
 // and to the DOM elements that make up each tab's list + panel + count.
@@ -257,6 +258,59 @@ function addLap(id) {
     saveTimers();
     renderTimers();
 }
+
+// "Running" = has a live segment AND (for countdowns) hasn't hit zero.
+function isRunning(timer, nowMs) {
+    return !!timer.started_at && !(timerType(timer) === 'countdown' && totalMs(timer, nowMs) <= 0);
+}
+
+function updateToggleAllButton() {
+    const type = TABS[currentTab].type;
+    const scoped = timers.filter(t => timerType(t) === type);
+    if (scoped.length === 0) {
+        toggleAllBtn.hidden = true;
+        return;
+    }
+    const now = Date.now();
+    const anyRunning = scoped.some(t => isRunning(t, now));
+    const state = anyRunning ? 'stop' : 'start';
+    if (toggleAllBtn.dataset.state !== state) {
+        toggleAllBtn.dataset.state = state;
+        toggleAllBtn.classList.toggle('stop', state === 'stop');
+        toggleAllBtn.classList.toggle('start', state === 'start');
+        toggleAllBtn.innerHTML = (state === 'stop' ? STOP_ICON_SVG : PLAY_ICON_SVG) +
+            `<span class="fab-label">${state === 'stop' ? 'Stop All' : 'Start All'}</span>`;
+        toggleAllBtn.setAttribute('aria-label', state === 'stop' ? 'Stop all' : 'Start all');
+    }
+    // "Start" is a no-op when every paused scoped timer is a finished countdown.
+    const startable = scoped.some(t => !t.started_at && !(timerType(t) === 'countdown' && totalMs(t, now) <= 0));
+    toggleAllBtn.disabled = state === 'start' && !startable;
+    toggleAllBtn.hidden = false;
+}
+
+toggleAllBtn.addEventListener('click', () => {
+    const type = TABS[currentTab].type;
+    const now = Date.now();
+    let changed = false;
+    timers.forEach(timer => {
+        if (timerType(timer) !== type) return;
+        if (toggleAllBtn.dataset.state === 'stop') {
+            if (timer.started_at) {
+                timer.elapsed_ms += Math.max(0, now - Date.parse(timer.started_at));
+                timer.started_at = null;
+                changed = true;
+            }
+        } else if (timer.started_at === null &&
+                   !(timerType(timer) === 'countdown' && totalMs(timer, now) <= 0)) {
+            timer.started_at = new Date().toISOString();
+            changed = true;
+        }
+    });
+    if (changed) {
+        saveTimers();
+        renderTimers();
+    }
+});
 
 // CSV export/import (backup)
 
@@ -639,10 +693,18 @@ function renderTimers() {
     openCard = null; // cards were rebuilt; any open reference is stale
     updateDisplays();
     fitDisplays();
+    updateToggleAllButton();
 }
 
 // Auto-fit: shrink all displays in each visible list to the largest size that
 // lets the widest one fit its flex slot (capped at --display-max).
+// justify-content:flex-end overflows to the left, which scrollWidth doesn't
+// capture — measure the children (they keep content width as flex items).
+function displayContentWidth(el) {
+    return Array.from(el.children).reduce((sum, c) =>
+        sum + c.getBoundingClientRect().width + parseFloat(getComputedStyle(c).marginRight), 0);
+}
+
 function fitDisplays() {
     const rootStyle = getComputedStyle(document.documentElement);
     const maxPx = parseFloat(rootStyle.getPropertyValue('--display-max')) * parseFloat(rootStyle.fontSize);
@@ -654,7 +716,7 @@ function fitDisplays() {
         displays.forEach(el => {
             el.style.fontSize = maxPx + 'px';
             const available = el.clientWidth; // flex:1 slot width, unaffected by content
-            const needed = el.scrollWidth;
+            const needed = displayContentWidth(el);
             if (needed > available && needed > 0) size = Math.min(size, Math.floor(maxPx * available / needed));
         });
         size = Math.max(size, 20);
@@ -664,7 +726,7 @@ function fitDisplays() {
             let over = 0;
             displays.forEach(el => {
                 el.style.fontSize = size + 'px';
-                over = Math.max(over, el.scrollWidth - el.clientWidth);
+                over = Math.max(over, displayContentWidth(el) - el.clientWidth);
             });
             if (over <= 0) break;
             size--;
@@ -860,7 +922,7 @@ function updateDisplays() {
         if (card) {
             const toggleBtn = card.querySelector('.toggle-btn');
             if (toggleBtn) {
-                const running = !!timer.started_at && !finished;
+                const running = isRunning(timer, now);
                 if (toggleBtn.classList.contains('running') !== running) {
                     toggleBtn.innerHTML = running ? STOP_ICON_SVG : PLAY_ICON_SVG;
                     toggleBtn.setAttribute('aria-label', running ? 'Stop' : 'Start');
@@ -877,6 +939,7 @@ function updateDisplays() {
     if (daysChanged) {
         fitDisplays();
     }
+    updateToggleAllButton();
 }
 
 // Tab switching
@@ -894,6 +957,7 @@ function switchTab(tabName) {
         btn.classList.toggle('active', btn.dataset.tab === tabName);
     });
     fitDisplays();
+    updateToggleAllButton();
 }
 
 tabButtons.forEach(btn => {
