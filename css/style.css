@@ -201,11 +201,38 @@ h2 {
 }
 
 .timer-card {
+    position: relative;
+    overflow: hidden;
+    padding: 0;
+    border-bottom: 1px solid var(--divider);
+}
+
+.swipe-actions {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 88px;
+    display: flex;
+}
+
+.timer-card-content {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
+    background: var(--surface);
     padding: 0.9rem 0;
-    border-bottom: 1px solid var(--divider);
+    transform: translateX(0);
+    transition: transform 0.2s ease;
+    touch-action: pan-y;
+    will-change: transform;
+}
+
+.timer-card-content.swiping {
+    transition: none;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .timer-card:last-child {
@@ -289,10 +316,7 @@ h2 {
     color: var(--red);
 }
 
-.timer-footer {
-    display: flex;
-    justify-content: flex-end;
-}
+
 
 .lap-list {
     list-style: none;
@@ -495,23 +519,28 @@ button#add-timer-btn:hover {
 }
 
 .delete-btn {
-    flex-shrink: 0;
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    background: transparent;
-    border: none;
-    color: var(--red);
+    flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 0.25rem;
+    background: var(--red);
+    border: none;
+    border-radius: 0;
+    color: #fff;
     cursor: pointer;
     padding: 0;
-    transition: background-color 0.15s, opacity 0.15s;
+    transition: opacity 0.15s;
+}
+
+.delete-label {
+    font-size: 0.75rem;
+    font-weight: 500;
 }
 
 .delete-btn:hover {
-    background-color: rgba(255, 69, 58, 0.12);
+    opacity: 0.9;
 }
 
 .delete-btn:active {

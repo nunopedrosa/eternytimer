@@ -38,7 +38,7 @@ let pickerValues = { days: 0, hours: 0, minutes: 0, seconds: 0 };
 
 // Static, non-user-controlled markup, safe to inject via innerHTML.
 const TRASH_ICON_SVG = `
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 7h16"/>
         <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
         <path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/>
@@ -551,8 +551,10 @@ function buildTimerCard(timer) {
 
     row.appendChild(controls);
 
-    card.appendChild(nameInput);
-    card.appendChild(row);
+    const content = document.createElement('div');
+    content.className = 'timer-card-content';
+    content.appendChild(nameInput);
+    content.appendChild(row);
 
     if (isStopwatch && timer.laps.length > 0) {
         const lapList = document.createElement('ol');
@@ -581,7 +583,7 @@ function buildTimerCard(timer) {
             row.appendChild(totalEl);
             lapList.appendChild(row);
         }
-        card.appendChild(lapList);
+        content.appendChild(lapList);
     }
 
     const deleteBtn = document.createElement('button');
@@ -589,12 +591,19 @@ function buildTimerCard(timer) {
     deleteBtn.className = 'delete-btn';
     deleteBtn.dataset.id = timer.id;
     deleteBtn.setAttribute('aria-label', `Delete ${timer.name}`);
+    deleteBtn.setAttribute('tabindex', '-1');
     deleteBtn.innerHTML = TRASH_ICON_SVG;
+    const deleteLabel = document.createElement('span');
+    deleteLabel.className = 'delete-label';
+    deleteLabel.textContent = 'Delete';
+    deleteBtn.appendChild(deleteLabel);
 
-    const footer = document.createElement('div');
-    footer.className = 'timer-footer';
-    footer.appendChild(deleteBtn);
-    card.appendChild(footer);
+    const actions = document.createElement('div');
+    actions.className = 'swipe-actions';
+    actions.appendChild(deleteBtn);
+
+    card.appendChild(actions);
+    card.appendChild(content);
     return card;
 }
 
@@ -615,6 +624,7 @@ function renderTimers() {
         tab.list.appendChild(buildTimerCard(timer));
     });
 
+    openCard = null; // cards were rebuilt; any open reference is stale
     updateDisplays();
 }
 
@@ -628,8 +638,129 @@ mainEl.addEventListener('blur', (e) => {
     }
 }, true);
 
+// iOS-style swipe-to-delete: dragging a card's content left reveals the
+// delete panel underneath. Delegated on mainEl since cards are rebuilt.
+const SWIPE_OPEN_WIDTH = 88;
+const SWIPE_COMMIT = 8;
+const SWIPE_OPEN_THRESHOLD = SWIPE_OPEN_WIDTH / 2;
+let swipe = null;
+let openCard = null;
+let suppressClick = false;
+
+function cardContent(card) {
+    return card.querySelector('.timer-card-content');
+}
+
+function setDeleteTabIndex(card, value) {
+    card.querySelector('.delete-btn')?.setAttribute('tabindex', value);
+}
+
+function openCardPanel(card) {
+    card.classList.add('open');
+    cardContent(card).style.transform = `translateX(${-SWIPE_OPEN_WIDTH}px)`;
+    setDeleteTabIndex(card, '0');
+    openCard = card;
+}
+
+function closeCardPanel(card) {
+    if (!card) return;
+    card.classList.remove('open');
+    const content = cardContent(card);
+    if (content) content.style.transform = 'translateX(0)';
+    setDeleteTabIndex(card, '-1');
+    if (openCard === card) openCard = null;
+}
+
+mainEl.addEventListener('pointerdown', (e) => {
+    suppressClick = false;
+    if (e.button !== 0) return;
+    const content = e.target.closest('.timer-card-content');
+    if (!content || e.target.closest('button')) return;
+    const card = content.closest('.timer-card');
+    if (openCard && openCard !== card) {
+        closeCardPanel(openCard);
+    }
+    swipe = {
+        content: content,
+        card: card,
+        startX: e.clientX,
+        startY: e.clientY,
+        startOffset: card.classList.contains('open') ? -SWIPE_OPEN_WIDTH : 0,
+        dragging: false,
+        pointerId: e.pointerId
+    };
+});
+
+window.addEventListener('pointermove', (e) => {
+    if (!swipe) return;
+    const dx = e.clientX - swipe.startX;
+    const dy = e.clientY - swipe.startY;
+    if (!swipe.dragging) {
+        if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > SWIPE_COMMIT) {
+            swipe = null; // vertical scroll wins
+            return;
+        }
+        if (Math.abs(dx) > SWIPE_COMMIT) {
+            swipe.dragging = true;
+            swipe.content.setPointerCapture(e.pointerId);
+            swipe.content.classList.add('swiping');
+            const active = document.activeElement;
+            if (active && active.classList.contains('timer-name-input') && swipe.card.contains(active)) {
+                active.blur();
+            }
+        } else {
+            return;
+        }
+    }
+    let offset = swipe.startOffset + dx;
+    if (offset < -SWIPE_OPEN_WIDTH) {
+        // small rubber-band over-drag past the open position
+        offset = -SWIPE_OPEN_WIDTH - Math.min(24, (offset + SWIPE_OPEN_WIDTH) / 2 * -1);
+    }
+    offset = Math.min(0, offset);
+    swipe.content.style.transform = `translateX(${offset}px)`;
+    e.preventDefault();
+}, { passive: false });
+
+function endSwipe() {
+    if (!swipe) return;
+    if (swipe.dragging) {
+        swipe.content.classList.remove('swiping');
+        const matrix = new DOMMatrixReadOnly(getComputedStyle(swipe.content).transform);
+        if (matrix.m41 <= -SWIPE_OPEN_THRESHOLD) {
+            openCardPanel(swipe.card);
+        } else {
+            closeCardPanel(swipe.card);
+        }
+        suppressClick = true;
+    }
+    swipe = null;
+}
+window.addEventListener('pointerup', endSwipe);
+window.addEventListener('pointercancel', endSwipe);
+
+// Clicking outside the open panel (or pressing Escape) closes it.
+// Capture phase: must run before the bubbling mainEl click handler clears
+// suppressClick, so the click ending a drag can't re-close a just-opened card.
+document.addEventListener('click', (e) => {
+    if (suppressClick || !openCard) return;
+    if (!e.target.closest('.swipe-actions')) {
+        closeCardPanel(openCard);
+    }
+}, true);
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && openCard) {
+        closeCardPanel(openCard);
+    }
+});
+
 // Delegation for card buttons (delete / start-stop / lap)
 mainEl.addEventListener('click', (e) => {
+    if (suppressClick) {
+        suppressClick = false;
+        e.preventDefault();
+        return;
+    }
     const toggleBtn = e.target.closest('.toggle-btn');
     if (toggleBtn) {
         toggleTimer(toggleBtn.dataset.id);
