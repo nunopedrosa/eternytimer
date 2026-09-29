@@ -38,12 +38,34 @@ let pickerValues = { days: 0, hours: 0, minutes: 0, seconds: 0 };
 
 // Static, non-user-controlled markup, safe to inject via innerHTML.
 const TRASH_ICON_SVG = `
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 7h16"/>
         <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
         <path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/>
         <path d="M10 11v6"/>
         <path d="M14 11v6"/>
+    </svg>
+`;
+
+const LAP_ICON_SVG = `
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="13" r="8"/>
+        <path d="M9 2h6"/>
+        <path d="M12 2v2"/>
+        <path d="M18.5 6.5l1.2-1.2"/>
+        <path d="M12 13V5a8 8 0 0 1 8 8z" fill="currentColor" stroke="none"/>
+    </svg>
+`;
+
+const PLAY_ICON_SVG = `
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 5.5v13l11-6.5z" fill="currentColor"/>
+    </svg>
+`;
+
+const STOP_ICON_SVG = `
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor"/>
     </svg>
 `;
 
@@ -476,9 +498,6 @@ function buildTimerCard(timer) {
     const card = document.createElement('div');
     card.className = 'timer-card';
 
-    const info = document.createElement('div');
-    info.className = 'timer-info';
-
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
     nameInput.className = 'timer-name-input';
@@ -502,8 +521,9 @@ function buildTimerCard(timer) {
     display.appendChild(daysEl);
     display.appendChild(timeEl);
 
-    info.appendChild(nameInput);
-    info.appendChild(display);
+    const row = document.createElement('div');
+    row.className = 'timer-row';
+    row.appendChild(display);
 
     const controls = document.createElement('div');
     controls.className = 'timer-controls';
@@ -513,7 +533,8 @@ function buildTimerCard(timer) {
         lapBtn.type = 'button';
         lapBtn.className = 'ctrl-btn lap-btn';
         lapBtn.dataset.id = timer.id;
-        lapBtn.textContent = 'Lap';
+        lapBtn.setAttribute('aria-label', 'Lap');
+        lapBtn.innerHTML = LAP_ICON_SVG;
         lapBtn.disabled = !timer.started_at || timer.laps.length >= MAX_LAPS;
         controls.appendChild(lapBtn);
     }
@@ -522,11 +543,16 @@ function buildTimerCard(timer) {
     toggleBtn.type = 'button';
     toggleBtn.className = 'ctrl-btn toggle-btn';
     toggleBtn.dataset.id = timer.id;
-    toggleBtn.textContent = timer.started_at ? 'Stop' : 'Start';
-    toggleBtn.classList.toggle('running', !!timer.started_at);
+    const running = !!timer.started_at;
+    toggleBtn.innerHTML = running ? STOP_ICON_SVG : PLAY_ICON_SVG;
+    toggleBtn.setAttribute('aria-label', running ? 'Stop' : 'Start');
+    toggleBtn.classList.toggle('running', running);
     controls.appendChild(toggleBtn);
 
-    info.appendChild(controls);
+    row.appendChild(controls);
+
+    card.appendChild(nameInput);
+    card.appendChild(row);
 
     if (isStopwatch && timer.laps.length > 0) {
         const lapList = document.createElement('ol');
@@ -555,7 +581,7 @@ function buildTimerCard(timer) {
             row.appendChild(totalEl);
             lapList.appendChild(row);
         }
-        info.appendChild(lapList);
+        card.appendChild(lapList);
     }
 
     const deleteBtn = document.createElement('button');
@@ -565,8 +591,10 @@ function buildTimerCard(timer) {
     deleteBtn.setAttribute('aria-label', `Delete ${timer.name}`);
     deleteBtn.innerHTML = TRASH_ICON_SVG;
 
-    card.appendChild(info);
-    card.appendChild(deleteBtn);
+    const footer = document.createElement('div');
+    footer.className = 'timer-footer';
+    footer.appendChild(deleteBtn);
+    card.appendChild(footer);
     return card;
 }
 
@@ -649,11 +677,11 @@ function updateDisplays() {
             const toggleBtn = card.querySelector('.toggle-btn');
             if (toggleBtn) {
                 const running = !!timer.started_at && !finished;
-                const label = timer.started_at ? 'Stop' : 'Start';
-                if (toggleBtn.textContent !== label) {
-                    toggleBtn.textContent = label;
+                if (toggleBtn.classList.contains('running') !== running) {
+                    toggleBtn.innerHTML = running ? STOP_ICON_SVG : PLAY_ICON_SVG;
+                    toggleBtn.setAttribute('aria-label', running ? 'Stop' : 'Start');
+                    toggleBtn.classList.toggle('running', running);
                 }
-                toggleBtn.classList.toggle('running', running);
                 toggleBtn.disabled = finished;
             }
             const lapBtn = card.querySelector('.lap-btn');

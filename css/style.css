@@ -202,10 +202,9 @@ h2 {
 
 .timer-card {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.9rem 0.25rem;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.9rem 0;
     border-bottom: 1px solid var(--divider);
 }
 
@@ -213,15 +212,19 @@ h2 {
     border-bottom: none;
 }
 
-.timer-info {
-    flex: 1;
-    min-width: 0;
+.timer-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .timer-display {
     display: flex;
     align-items: baseline;
-    font-size: 2rem;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    font-size: clamp(1.4rem, 8vw, 2.66rem);
     font-weight: 200;
     font-family: inherit;
     font-variant-numeric: tabular-nums;
@@ -236,7 +239,7 @@ h2 {
 
 .timer-days {
     display: inline-block;
-    min-width: 3ch;
+    min-width: 2ch;
     margin-right: 0.4ch;
     text-align: right;
 }
@@ -250,35 +253,45 @@ h2 {
 .timer-controls {
     display: flex;
     gap: 0.5rem;
-    margin-top: 0.5rem;
+    flex-shrink: 0;
+    margin-top: 0;
 }
 
 .ctrl-btn {
-    padding: 0.35rem 0.9rem;
-    border-radius: 999px;
-    border: 1px solid var(--divider);
-    background: var(--surface-alt);
-    color: var(--text);
-    font-size: 0.85rem;
-    font-weight: 500;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
 }
 
 .ctrl-btn:disabled {
-    opacity: 0.4;
+    opacity: 0.35;
     cursor: default;
 }
 
+.lap-btn {
+    background: var(--surface-alt);
+    color: var(--text);
+}
+
 .toggle-btn {
-    background: rgba(48, 209, 88, 0.15);
-    border-color: var(--green);
+    background: rgba(48, 209, 88, 0.18);
     color: var(--green);
 }
 
 .toggle-btn.running {
-    background: rgba(255, 69, 58, 0.15);
-    border-color: var(--red);
+    background: rgba(255, 69, 58, 0.18);
     color: var(--red);
+}
+
+.timer-footer {
+    display: flex;
+    justify-content: flex-end;
 }
 
 .lap-list {
@@ -483,9 +496,8 @@ button#add-timer-btn:hover {
 
 .delete-btn {
     flex-shrink: 0;
-    align-self: center;
-    width: 36px;
-    height: 36px;
+    width: 28px;
+    height: 28px;
     border-radius: 8px;
     background: transparent;
     border: none;
@@ -513,12 +525,3 @@ button#add-timer-btn:hover {
     min-height: 1.1rem;
 }
 
-@media (max-width: 480px) {
-    .timer-card {
-        flex-wrap: wrap;
-    }
-
-    .timer-display {
-        font-size: 1.7rem;
-    }
-}
