@@ -131,9 +131,10 @@ function normalizeTimer(raw) {
             .slice(0, MAX_LAPS);
     }
 
+    const sanitizedName = sanitizeName(raw.name);
     return {
         id: (typeof raw.id === 'string' && raw.id !== '') ? raw.id : makeId(),
-        name: sanitizeName(raw.name) ?? 'Timer',
+        name: sanitizedName === null ? 'Timer' : sanitizedName,
         type: type,
         initial_value: Math.min(MAX_INITIAL_VALUE_SECONDS, Math.max(0, Math.floor(Number(raw.initial_value) || 0))),
         created_at: created_at,
@@ -178,7 +179,8 @@ function addTimer(initialValue, name, type) {
     }
 
     type = normalizeType(type);
-    name = sanitizeName(name) ?? 'Timer';
+    const sanitizedName = sanitizeName(name);
+    name = sanitizedName === null ? 'Timer' : sanitizedName;
 
     const typeCount = timers.filter(t => timerType(t) === type).length;
     if (typeCount >= MAX_TIMERS_PER_TYPE) {
@@ -346,7 +348,7 @@ function exportTimers() {
             name = "'" + name;
         }
         rows.push([timer.id, name, timerType(timer), timer.initial_value, timer.created_at,
-            timer.started_at ?? '', timer.elapsed_ms, timer.laps.join(';')]
+            timer.started_at || '', timer.elapsed_ms, timer.laps.join(';')]
             .map(csvEscape).join(','));
     });
     const blob = new Blob([rows.join('\r\n')], { type: 'text/csv' });
@@ -496,6 +498,16 @@ function importTimers(text) {
     setStatus(msg);
 }
 
+// File.text is Safari 14+; FileReader works everywhere this app targets.
+function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.addEventListener('load', () => resolve(reader.result));
+        reader.addEventListener('error', () => reject(reader.error));
+        reader.readAsText(file);
+    });
+}
+
 exportBtn.addEventListener('click', exportTimers);
 importBtn.addEventListener('click', () => importFileInput.click());
 importFileInput.addEventListener('change', async () => {
@@ -503,7 +515,7 @@ importFileInput.addEventListener('change', async () => {
     importFileInput.value = '';
     if (!file) return;
     try {
-        importTimers(await file.text());
+        importTimers(await readFileAsText(file));
     } catch (err) {
         console.error(err);
         setStatus('Failed to read file', true);
@@ -756,6 +768,8 @@ mainEl.addEventListener('blur', (e) => {
 const SWIPE_OPEN_WIDTH = 88;
 const SWIPE_COMMIT = 8;
 const SWIPE_OPEN_THRESHOLD = SWIPE_OPEN_WIDTH / 2;
+// Pointer Events need iOS 13+; fall back to Touch Events on iOS 12.
+const HAS_POINTER = 'PointerEvent' in window;
 let swipe = null;
 let openCard = null;
 let suppressClick = false;
@@ -765,7 +779,8 @@ function cardContent(card) {
 }
 
 function setDeleteTabIndex(card, value) {
-    card.querySelector('.delete-btn')?.setAttribute('tabindex', value);
+    const btn = card.querySelector('.delete-btn');
+    if (btn) btn.setAttribute('tabindex', value);
 }
 
 function openCardPanel(card) {
@@ -784,11 +799,11 @@ function closeCardPanel(card) {
     if (openCard === card) openCard = null;
 }
 
-mainEl.addEventListener('pointerdown', (e) => {
+function startSwipe(target, clientX, clientY, button, pointerId) {
     suppressClick = false;
-    if (e.button !== 0) return;
-    const content = e.target.closest('.timer-card-content');
-    if (!content || e.target.closest('button')) return;
+    if (button !== 0) return;
+    const content = target.closest('.timer-card-content');
+    if (!content || target.closest('button')) return;
     const card = content.closest('.timer-card');
     if (openCard && openCard !== card) {
         closeCardPanel(openCard);
@@ -796,18 +811,18 @@ mainEl.addEventListener('pointerdown', (e) => {
     swipe = {
         content: content,
         card: card,
-        startX: e.clientX,
-        startY: e.clientY,
+        startX: clientX,
+        startY: clientY,
         startOffset: card.classList.contains('open') ? -SWIPE_OPEN_WIDTH : 0,
         dragging: false,
-        pointerId: e.pointerId
+        pointerId: pointerId
     };
-});
+}
 
-window.addEventListener('pointermove', (e) => {
+function moveSwipe(clientX, clientY, e) {
     if (!swipe) return;
-    const dx = e.clientX - swipe.startX;
-    const dy = e.clientY - swipe.startY;
+    const dx = clientX - swipe.startX;
+    const dy = clientY - swipe.startY;
     if (!swipe.dragging) {
         if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > SWIPE_COMMIT) {
             swipe = null; // vertical scroll wins
@@ -815,7 +830,9 @@ window.addEventListener('pointermove', (e) => {
         }
         if (Math.abs(dx) > SWIPE_COMMIT) {
             swipe.dragging = true;
-            swipe.content.setPointerCapture(e.pointerId);
+            if (swipe.pointerId !== undefined && swipe.content.setPointerCapture) {
+                swipe.content.setPointerCapture(swipe.pointerId);
+            }
             swipe.content.classList.add('swiping');
             const active = document.activeElement;
             if (active && active.classList.contains('timer-name-input') && swipe.card.contains(active)) {
@@ -833,13 +850,18 @@ window.addEventListener('pointermove', (e) => {
     offset = Math.min(0, offset);
     swipe.content.style.transform = `translateX(${offset}px)`;
     e.preventDefault();
-}, { passive: false });
+}
 
 function endSwipe() {
     if (!swipe) return;
     if (swipe.dragging) {
+        // Read the settled position before re-enabling the transition, or an
+        // unflushed final drag step reads back as the transition's start value.
+        const transform = getComputedStyle(swipe.content).transform;
+        const matrix = typeof DOMMatrixReadOnly === 'undefined'
+            ? new WebKitCSSMatrix(transform)
+            : new DOMMatrixReadOnly(transform);
         swipe.content.classList.remove('swiping');
-        const matrix = new DOMMatrixReadOnly(getComputedStyle(swipe.content).transform);
         if (matrix.m41 <= -SWIPE_OPEN_THRESHOLD) {
             openCardPanel(swipe.card);
         } else {
@@ -849,8 +871,34 @@ function endSwipe() {
     }
     swipe = null;
 }
-window.addEventListener('pointerup', endSwipe);
-window.addEventListener('pointercancel', endSwipe);
+
+if (HAS_POINTER) {
+    mainEl.addEventListener('pointerdown', (e) => {
+        startSwipe(e.target, e.clientX, e.clientY, e.button, e.pointerId);
+    });
+    window.addEventListener('pointermove', (e) => {
+        moveSwipe(e.clientX, e.clientY, e);
+    }, { passive: false });
+    window.addEventListener('pointerup', endSwipe);
+    window.addEventListener('pointercancel', endSwipe);
+} else {
+    mainEl.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 1) return;
+        const t = e.touches[0];
+        startSwipe(e.target, t.clientX, t.clientY, 0);
+    });
+    window.addEventListener('touchmove', (e) => {
+        if (!swipe) return;
+        if (e.touches.length > 1) {
+            endSwipe();
+            return;
+        }
+        const t = e.touches[0];
+        moveSwipe(t.clientX, t.clientY, e);
+    }, { passive: false });
+    window.addEventListener('touchend', endSwipe);
+    window.addEventListener('touchcancel', endSwipe);
+}
 
 // Clicking outside the open panel (or pressing Escape) closes it.
 // Capture phase: must run before the bubbling mainEl click handler clears
@@ -903,8 +951,8 @@ function updateDisplays() {
         const total = totalMs(timer, now);
         const finished = isCountdown && total <= 0;
 
-        const card = document.getElementById(`display-${timer.id}`)?.closest('.timer-card');
         const displayEl = document.getElementById(`display-${timer.id}`);
+        const card = displayEl ? displayEl.closest('.timer-card') : null;
         if (displayEl) {
             const { days, time } = formatDuration(total, !isCountdown);
             const daysEl = displayEl.querySelector('.timer-days');

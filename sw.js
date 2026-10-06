@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eternal-timer-v8';
+const CACHE_NAME = 'eternal-timer-v9';
 const ASSETS = [
   '/',
   '/index.html',
