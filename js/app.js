@@ -1,3 +1,5 @@
+const APP_BUILD_ID = 'eternal-timer-v10';
+
 const errorMsg = document.getElementById('error-message');
 const mainEl = document.querySelector('main');
 const modal = document.getElementById('modal');
@@ -55,6 +57,15 @@ const LAP_ICON_SVG = `
         <path d="M12 2v2"/>
         <path d="M18.5 6.5l1.2-1.2"/>
         <path d="M12 13V5a8 8 0 0 1 8 8z" fill="currentColor" stroke="none"/>
+    </svg>
+`;
+
+const RESET_ICON_SVG = `
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 0 1 15.5-6.4"/>
+        <path d="M18 3v5h-5"/>
+        <path d="M21 12a9 9 0 0 1-15.5 6.4"/>
+        <path d="M6 21v-5H1"/>
     </svg>
 `;
 
@@ -166,8 +177,36 @@ function saveTimers() {
     }
 }
 
+function finalizeExpiredCountdown(timer, nowMs) {
+    if (timerType(timer) !== 'countdown') {
+        return false;
+    }
+    if (!timer.started_at) {
+        return false;
+    }
+    if (totalMs(timer, nowMs) > 0) {
+        return false;
+    }
+    timer.elapsed_ms = timer.initial_value * 1000;
+    timer.started_at = null;
+    return true;
+}
+
+function finalizeExpiredCountdowns(nowMs) {
+    let changed = false;
+    timers.forEach(function (timer) {
+        if (finalizeExpiredCountdown(timer, nowMs)) {
+            changed = true;
+        }
+    });
+    return changed;
+}
+
 function loadAndRender() {
     timers = loadTimers();
+    if (finalizeExpiredCountdowns(Date.now())) {
+        saveTimers();
+    }
     renderTimers();
 }
 
@@ -257,6 +296,17 @@ function addLap(id) {
     if (!timer || timerType(timer) !== 'stopwatch') return;
     if (!timer.started_at || timer.laps.length >= MAX_LAPS) return;
     timer.laps.push(totalMs(timer, Date.now()));
+    saveTimers();
+    renderTimers();
+}
+
+function resetTimer(id) {
+    const timer = timers.find(t => t.id === id);
+    if (!timer || timerType(timer) !== 'stopwatch') return;
+    if (timer.started_at) return;
+    timer.elapsed_ms = 0;
+    timer.initial_value = 0;
+    timer.laps = [];
     saveTimers();
     renderTimers();
 }
@@ -596,14 +646,20 @@ function buildTimerCard(timer) {
     controls.className = 'timer-controls';
 
     if (isStopwatch) {
-        const lapBtn = document.createElement('button');
-        lapBtn.type = 'button';
-        lapBtn.className = 'ctrl-btn lap-btn';
-        lapBtn.dataset.id = timer.id;
-        lapBtn.setAttribute('aria-label', 'Lap');
-        lapBtn.innerHTML = LAP_ICON_SVG;
-        lapBtn.disabled = !timer.started_at || timer.laps.length >= MAX_LAPS;
-        controls.appendChild(lapBtn);
+        const secondaryBtn = document.createElement('button');
+        secondaryBtn.type = 'button';
+        secondaryBtn.dataset.id = timer.id;
+        if (timer.started_at) {
+            secondaryBtn.className = 'ctrl-btn lap-btn';
+            secondaryBtn.setAttribute('aria-label', 'Lap');
+            secondaryBtn.innerHTML = LAP_ICON_SVG;
+            secondaryBtn.disabled = timer.laps.length >= MAX_LAPS;
+        } else {
+            secondaryBtn.className = 'ctrl-btn reset-btn';
+            secondaryBtn.setAttribute('aria-label', 'Reset');
+            secondaryBtn.innerHTML = RESET_ICON_SVG;
+        }
+        controls.appendChild(secondaryBtn);
     }
 
     const toggleBtn = document.createElement('button');
@@ -932,6 +988,11 @@ mainEl.addEventListener('click', (e) => {
         addLap(lapBtn.dataset.id);
         return;
     }
+    const resetBtn = e.target.closest('.reset-btn');
+    if (resetBtn) {
+        resetTimer(resetBtn.dataset.id);
+        return;
+    }
     const btn = e.target.closest('.delete-btn');
     if (!btn) return;
 
@@ -945,6 +1006,11 @@ mainEl.addEventListener('click', (e) => {
 
 function updateDisplays() {
     const now = Date.now();
+    if (finalizeExpiredCountdowns(now)) {
+        saveTimers();
+        renderTimers();
+        return;
+    }
     let daysChanged = false;
     timers.forEach(timer => {
         const isCountdown = timerType(timer) === 'countdown';
@@ -980,7 +1046,7 @@ function updateDisplays() {
             }
             const lapBtn = card.querySelector('.lap-btn');
             if (lapBtn) {
-                lapBtn.disabled = !timer.started_at || timer.laps.length >= MAX_LAPS;
+                lapBtn.disabled = timer.laps.length >= MAX_LAPS;
             }
         }
     });
@@ -1122,12 +1188,116 @@ function resetWheels() {
 
 buildWheels();
 
+// --- Service worker / app updates ---
+
+const updateBanner = document.getElementById('update-banner');
+const applyUpdateBtn = document.getElementById('apply-update-btn');
+const appVersionEl = document.getElementById('app-version');
+let swRegistration = null;
+let displayTickScheduled = false;
+let reloadAfterUpdate = false;
+
+if (appVersionEl) {
+    appVersionEl.textContent = APP_BUILD_ID;
+}
+
+function setUpdateBannerVisible(visible) {
+    if (!updateBanner) {
+        return;
+    }
+    updateBanner.hidden = !visible;
+}
+
+function trackWaitingWorker(registration) {
+    if (registration.waiting && navigator.serviceWorker.controller) {
+        setUpdateBannerVisible(true);
+    }
+    registration.addEventListener('updatefound', function () {
+        const installing = registration.installing;
+        if (!installing) {
+            return;
+        }
+        installing.addEventListener('statechange', function () {
+            if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+                setUpdateBannerVisible(true);
+            }
+        });
+    });
+}
+
+function applyPendingUpdate() {
+    if (!swRegistration || !swRegistration.waiting) {
+        window.location.reload();
+        return;
+    }
+    reloadAfterUpdate = true;
+    swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+}
+
+function checkForAppUpdate() {
+    if (!swRegistration || !navigator.onLine) {
+        return;
+    }
+    swRegistration.update();
+}
+
+function registerAppServiceWorker() {
+    if (!('serviceWorker' in navigator)) {
+        return;
+    }
+    window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js')
+            .then(function (registration) {
+                swRegistration = registration;
+                trackWaitingWorker(registration);
+                checkForAppUpdate();
+            })
+            .catch(function (err) {
+                console.error('Service worker registration failed', err);
+            });
+    });
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (!reloadAfterUpdate) {
+            return;
+        }
+        window.location.reload();
+    });
+}
+
+if (applyUpdateBtn) {
+    applyUpdateBtn.addEventListener('click', applyPendingUpdate);
+}
+
+registerAppServiceWorker();
+
+// --- Visible display loop (timers stay accurate via stored timestamps) ---
+
+function runDisplayTick() {
+    displayTickScheduled = false;
+    if (document.hidden) {
+        return;
+    }
+    updateDisplays();
+    scheduleDisplayTick();
+}
+
+function scheduleDisplayTick() {
+    if (displayTickScheduled || document.hidden) {
+        return;
+    }
+    displayTickScheduled = true;
+    requestAnimationFrame(runDisplayTick);
+}
+
+document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+        return;
+    }
+    updateDisplays();
+    scheduleDisplayTick();
+    checkForAppUpdate();
+});
+
 // Initial load
 loadAndRender();
-
-// Update every frame (hundredths display needs more than 1 Hz)
-function tick() {
-    updateDisplays();
-    requestAnimationFrame(tick);
-}
-requestAnimationFrame(tick);
+scheduleDisplayTick();

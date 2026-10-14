@@ -17,6 +17,9 @@ A PWA (Progressive Web App) application to manage multiple "eternal" stopwatches
 - **Storage**: Browser `localStorage`
 - No backend — fully static site.
 
+## Development
+Contributors and coding agents should read [AGENTS.md](AGENTS.md) before changing behaviour, compatibility-sensitive code, backup format or the service worker. It adopts the shared trekm PWA baseline from the sibling [`pwa`](https://github.com/nunopedrosa/pwa) project (`../pwa/AGENTS.md` in a typical local checkout).
+
 ## Setup
 Serve the directory with any static file server, e.g.:
 
@@ -35,10 +38,11 @@ The site is fully static — no PHP or server-side storage needed.
    ```bash
    cd ~ && git clone https://github.com/nunopedrosa/eternytimer.git timers.trekm.com
    ```
-2. To update later:
-   ```bash
-   cd ~/timers.trekm.com && git pull
-   ```
+2. To publish a new release after `git pull`:
+   - Bump the release id in `sw.js` (`CACHE_NAME`), `js/app.js` (`APP_BUILD_ID`), and `index.html` (`data-app-version` plus `?v=` on CSS/JS). See [docs/UPDATES.md](docs/UPDATES.md).
+   - Run `node scripts/check-sw-assets.js`.
+   - Upload changed files, then upload **`sw.js` last**.
+3. In the installed app, open online once; when **A new version is ready** appears, tap **Reload**.
 
 ## Backup (export/import)
 Use the icon buttons in the header to export/import all timers as CSV (`eternal-timer-backup-YYYY-MM-DD.csv`). Columns: `id,name,type,initial_value,created_at,started_at,elapsed_ms,laps`. The last three are optional — legacy 5-column files still import and are treated as running since `created_at`. `started_at` is empty when paused, `elapsed_ms` is accumulated pause-adjusted milliseconds, and `laps` is a `;`-separated list of stopwatch lap totals in ms. Import merges by `id`: an existing timer with the same id is replaced, otherwise the row is added; rows with an unparseable `created_at` (or that would exceed the 50-per-type limit) are skipped. Names starting with `=`, `+`, `-` or `@` are `'`-prefixed on export and un-prefixed on import (spreadsheet formula-injection guard).

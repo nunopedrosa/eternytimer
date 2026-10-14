@@ -33,9 +33,54 @@ header {
     color: var(--text);
     padding: 1.5rem 1rem 0.5rem;
     border-bottom: 1px solid var(--divider);
+}
+
+.header-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
+}
+
+.app-version {
+    margin: 0.35rem 0 0;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+}
+
+.update-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    max-width: 600px;
+    margin: 0.75rem auto 0;
+    padding: 0.65rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--divider);
+    border-radius: 12px;
+}
+
+.update-banner[hidden] {
+    display: none;
+}
+
+.update-banner-text {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text);
+}
+
+.update-banner-btn {
+    flex-shrink: 0;
+    border: none;
+    border-radius: 8px;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    background: rgba(48, 209, 88, 0.22);
+    color: var(--green);
 }
 
 header h1 {
@@ -369,7 +414,8 @@ h2 {
     cursor: default;
 }
 
-.lap-btn {
+.lap-btn,
+.reset-btn {
     background: var(--surface-alt);
     color: var(--text);
 }

@@ -1,0 +1,13 @@
+---
+description: Read project agent instructions before making changes
+alwaysApply: true
+---
+
+# Agent instructions
+
+Before planning or editing code in this repository:
+
+1. Read [AGENTS.md](../../AGENTS.md) at the repo root for Eternal Timer–specific rules, code map, compatibility floor and data semantics.
+2. Read [../pwa/AGENTS.md](../../pwa/AGENTS.md) as the shared trekm PWA baseline when that path exists locally (sibling checkout: `../pwa/` next to this repo). If it is missing, follow the fallback note in AGENTS.md; do not invent a substitute baseline.
+
+Preserve stricter app-specific requirements in AGENTS.md over general habits. Update AGENTS.md when you change compatibility targets, backup format, service worker caching or core timer behaviour.

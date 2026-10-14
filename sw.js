@@ -1,9 +1,9 @@
-const CACHE_NAME = 'eternal-timer-v9';
+const CACHE_NAME = 'eternal-timer-v10';
 const ASSETS = [
   '/',
   '/index.html',
-  '/css/style.css',
-  '/js/app.js',
+  '/css/style.css?v=eternal-timer-v10',
+  '/js/app.js?v=eternal-timer-v10',
   '/manifest.json',
   '/icons/icon.svg',
   '/icons/icon-192.png',
@@ -16,8 +16,13 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(ASSETS))
-      .then(() => self.skipWaiting())
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', (event) => {
@@ -34,17 +39,29 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Network-first for the app shell: while actively developing, this makes
-// sure a code change is picked up on the very next reload instead of being
-// masked by a stale cache. Falls back to cache when offline.
+// Network-first for same-origin GET requests. Falls back to cache when offline.
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') {
+    return;
+  }
+  var url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
-      .then((response) => {
-        const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+      .then(function (response) {
+        if (response.ok) {
+          var responseClone = response.clone();
+          caches.open(CACHE_NAME).then(function (cache) {
+            cache.put(event.request, responseClone);
+          });
+        }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(function () {
+        return caches.match(event.request);
+      })
   );
 });

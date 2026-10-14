@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-app-version="eternal-timer-v10">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Eternal Timer</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=eternal-timer-v10">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="favicon.ico" sizes="48x48">
     <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -16,17 +16,25 @@
 </head>
 <body>
     <header>
-        <h1>Eternal Timer</h1>
-        <div class="header-actions">
-            <button id="export-btn" class="icon-btn" type="button" aria-label="Export timers">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 7l5-4 5 4"/><path d="M5 11v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></svg>
-            </button>
-            <button id="import-btn" class="icon-btn" type="button" aria-label="Import timers">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 4 5-4"/><path d="M5 19h14"/></svg>
-            </button>
-            <input type="file" id="import-file" accept=".csv,text/csv" hidden>
+        <div class="header-row">
+            <h1>Eternal Timer</h1>
+            <div class="header-actions">
+                <button id="export-btn" class="icon-btn" type="button" aria-label="Export timers">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 7l5-4 5 4"/><path d="M5 11v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></svg>
+                </button>
+                <button id="import-btn" class="icon-btn" type="button" aria-label="Import timers">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 4 5-4"/><path d="M5 19h14"/></svg>
+                </button>
+                <input type="file" id="import-file" accept=".csv,text/csv" hidden>
+            </div>
         </div>
+        <p id="app-version" class="app-version" aria-label="App version"></p>
     </header>
+
+    <div id="update-banner" class="update-banner" hidden>
+        <p class="update-banner-text">A new version is ready.</p>
+        <button id="apply-update-btn" class="update-banner-btn" type="button">Reload</button>
+    </div>
 
     <main>
         <p id="status-message" class="status"></p>
@@ -87,19 +95,6 @@
         </div>
     </div>
 
-    <script src="js/app.js"></script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
-                    .then(registration => {
-                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                    })
-                    .catch(error => {
-                        console.log('ServiceWorker registration failed: ', error);
-                    });
-            });
-        }
-    </script>
+    <script src="js/app.js?v=eternal-timer-v10"></script>
 </body>
 </html>
