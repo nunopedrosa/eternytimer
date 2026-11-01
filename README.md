@@ -58,3 +58,7 @@ All icon/favicon assets are generated from `icons/icon.svg` via `scripts/build-i
 
 ## Security Notes
 - All data lives in the browser's `localStorage`. Clearing site data (or using a different browser/device) removes the timers.
+
+## Shared deployment command (2026-11-01)
+
+See [the current deployment contract](docs/SHARED_DEPLOYMENT.md) and `scripts/deploy-profile.sh`. This supersedes older script flags, SSH-only wrappers and broad deletion instructions below/above; hosting coordinates and app-specific private/release requirements still apply. No deployment is authorized by source changes.

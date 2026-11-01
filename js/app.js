@@ -1,4 +1,4 @@
-const APP_BUILD_ID = 'eternal-timer-v10';
+const APP_BUILD_ID = 'eternal-timer-v11';
 
 const errorMsg = document.getElementById('error-message');
 const mainEl = document.querySelector('main');

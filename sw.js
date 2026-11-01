@@ -1,9 +1,10 @@
-const CACHE_NAME = 'eternal-timer-v10';
+const CACHE_NAME = 'eternal-timer-v11';
 const ASSETS = [
+  '/shared-controls.css?v=eternal-timer-v11', '/shared-icons.svg','/shared-chevron.svg',
   '/',
   '/index.html',
-  '/css/style.css?v=eternal-timer-v10',
-  '/js/app.js?v=eternal-timer-v10',
+  '/css/style.css?v=eternal-timer-v11',
+  '/js/app.js?v=eternal-timer-v11',
   '/manifest.json',
   '/icons/icon.svg',
   '/icons/icon-192.png',

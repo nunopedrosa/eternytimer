@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" data-app-version="eternal-timer-v10">
+<html lang="en" data-app-version="eternal-timer-v11">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Eternal Timer</title>
-    <link rel="stylesheet" href="css/style.css?v=eternal-timer-v10">
+    <link rel="stylesheet" href="css/style.css?v=eternal-timer-v11">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="favicon.ico" sizes="48x48">
     <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -13,17 +13,18 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="Eternal Timer">
     <meta name="theme-color" content="#000000">
+<link rel="stylesheet" href="shared-controls.css?v=eternal-timer-v11">
 </head>
 <body>
     <header>
         <div class="header-row">
             <h1>Eternal Timer</h1>
             <div class="header-actions">
-                <button id="export-btn" class="icon-btn" type="button" aria-label="Export timers">
-                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 7l5-4 5 4"/><path d="M5 11v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></svg>
+                <button id="export-btn" class="icon-btn pwa-control" type="button" aria-label="Export timers">
+                    <svg class="pwa-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 15V3M8 7l4-4 4 4M4 16v5h16v-5"/></svg>
                 </button>
-                <button id="import-btn" class="icon-btn" type="button" aria-label="Import timers">
-                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 4 5-4"/><path d="M5 19h14"/></svg>
+                <button id="import-btn" class="icon-btn pwa-control" type="button" aria-label="Import timers">
+                    <svg class="pwa-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/></svg>
                 </button>
                 <input type="file" id="import-file" accept=".csv,text/csv" hidden>
             </div>
@@ -33,7 +34,7 @@
 
     <div id="update-banner" class="update-banner" hidden>
         <p class="update-banner-text">A new version is ready.</p>
-        <button id="apply-update-btn" class="update-banner-btn" type="button">Reload</button>
+        <button id="apply-update-btn" class="update-banner-btn pwa-control" type="button">Reload</button>
     </div>
 
     <main>
@@ -90,11 +91,11 @@
                 <div class="wheel-unit">s</div>
             </div>
             <div id="selected-value-display">00:00:00</div>
-            <button id="add-timer-btn">Add Timer</button>
+            <button id="add-timer-btn" class="pwa-control">Add Timer</button>
             <p id="error-message" class="error"></p>
         </div>
     </div>
 
-    <script src="js/app.js?v=eternal-timer-v10"></script>
+    <script src="js/app.js?v=eternal-timer-v11"></script>
 </body>
 </html>

@@ -684,3 +684,8 @@ button#add-timer-btn:hover {
     min-height: 1.1rem;
 }
 
+
+/* Shared controls 1.0.0: app-owned screen adapters. */
+@media screen {
+ .header-actions,.update-banner{align-items:flex-start;}
+}
