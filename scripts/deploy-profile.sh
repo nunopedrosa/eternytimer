@@ -1,8 +1,8 @@
 # App-owned publication contract; common engine: BaseCentral deploy 1.0.0.
 APP_ID=eternytimer
 SOURCE_SUBDIR=.
-DEFAULT_DESTINATION="${DEPLOY_SITE:-$HOME/timers.trekm.com}"
-DEPLOY_URL=https://timers.trekm.com
+DEFAULT_DESTINATION="${DEPLOY_SITE:-$HOME/timers.basecentral.link}"
+DEPLOY_URL=https://timers.basecentral.link
 PUBLIC_FILES=$(cat <<'PUBLIC_FILES'
 css/style.css
 favicon.ico
